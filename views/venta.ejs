@@ -1,0 +1,278 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Salud - Registrar Venta</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: #f1f5f9;
+            color: #1e293b;
+            padding: 30px 20px;
+        }
+
+        .container {
+            max-width: 650px;
+            margin: 30px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        h2 {
+            font-size: 22px;
+            margin-bottom: 8px;
+            color: #1e293b;
+        }
+
+        .descripcion {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #475569;
+            font-size: 14px;
+            padding: 9px 12px;
+            border-radius: 6px;
+        }
+
+        .nav a:hover,
+        .nav a.activo {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .nav button {
+            width: auto;
+            margin: 0 0 0 auto;
+            padding: 9px 12px;
+            background: #fee2e2;
+            color: #dc2626;
+            font-size: 13px;
+        }
+
+        .nav button:hover {
+            background: #fecaca;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        select,
+        input {
+            width: 100%;
+            padding: 12px;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            color: #1e293b;
+            font-size: 14px;
+            outline: none;
+        }
+
+        select:focus,
+        input:focus {
+            border-color: #3b82f6;
+        }
+
+        .btn-registrar {
+            width: 100%;
+            padding: 12px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        .btn-registrar:hover {
+            background: #1d4ed8;
+        }
+
+        #mensaje {
+            display: none;
+            margin-top: 18px;
+            padding: 13px;
+            border-radius: 7px;
+            font-size: 14px;
+        }
+
+        @media (max-width: 500px) {
+            .container {
+                padding: 20px;
+            }
+
+            .nav button {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="nav">
+            <a href="/view-venta" class="activo">Registrar Venta</a>
+            <a href="/view-productos">Inventario</a>
+            <a href="/view-alertas">Alertas de Stock</a>
+
+            <button onclick="cerrarSesion()">Cerrar sesión</button>
+        </div>
+
+        <h2>Registrar venta</h2>
+        <p class="descripcion">Complete los datos para registrar una nueva venta.</p>
+
+        <div class="form-group">
+            <label for="productoId">Producto</label>
+            <select id="productoId">
+                <option value="">Cargando productos...</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="cantidad">Cantidad</label>
+            <input type="number" id="cantidad" value="1" min="1">
+        </div>
+
+        <div class="form-group">
+            <label for="metodo_pago">Método de pago</label>
+            <select id="metodo_pago">
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="TARJETA">Tarjeta</option>
+                <option value="YAPE">Yape / Plin</option>
+            </select>
+        </div>
+
+        <button class="btn-registrar" onclick="registrarVenta()">
+            Registrar venta
+        </button>
+
+        <div id="mensaje"></div>
+
+    </div>
+
+    <script>
+        const token = localStorage.getItem('mi_token');
+
+        if (!token) window.location.href = '/view-login';
+
+        function cerrarSesion() {
+            localStorage.removeItem('mi_token');
+            window.location.href = '/view-login';
+        }
+
+        fetch('/productos', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(res => res.json())
+        .then(productos => {
+            const select = document.getElementById('productoId');
+            select.innerHTML = '';
+
+            if (productos.length === 0) {
+                select.innerHTML = '<option value="">No hay productos en inventario</option>';
+                return;
+            }
+
+            productos.forEach(p => {
+                select.innerHTML += `
+                    <option value="${p._id}">
+                        ${p.nombre} - S/ ${p.precio} (Stock: ${p.stock})
+                    </option>
+                `;
+            });
+        })
+        .catch(err => console.log(err));
+
+        async function registrarVenta() {
+            const productoId = document.getElementById('productoId').value;
+            const cantidad = document.getElementById('cantidad').value;
+            const metodo_pago = document.getElementById('metodo_pago').value;
+            const msj = document.getElementById('mensaje');
+
+            if (!productoId) return alert("Seleccione un producto");
+
+            if (!Number.isInteger(Number(cantidad)) || Number(cantidad) < 1) {
+                return alert("Ingrese una cantidad válida");
+            }
+
+            try {
+                const res = await fetch('/ventas', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        metodo_pago: metodo_pago,
+                        items: [{
+                            productoId: productoId,
+                            cantidad: parseInt(cantidad)
+                        }]
+                    })
+                });
+
+                const data = await res.json();
+
+                msj.style.display = 'block';
+
+                if (res.ok) {
+                    msj.style.background = '#dcfce7';
+                    msj.style.color = '#15803d';
+                    msj.innerText = `Venta registrada correctamente. Total: S/ ${data.total}`;
+                } else {
+                    msj.style.background = '#fee2e2';
+                    msj.style.color = '#b91c1c';
+                    msj.innerText = data.error || 'No se pudo registrar la venta';
+                }
+
+            } catch (err) {
+                msj.style.display = 'block';
+                msj.style.background = '#fee2e2';
+                msj.style.color = '#b91c1c';
+                msj.innerText = 'Error de conexión con el servidor';
+            }
+        }
+    </script>
+
+</body>
+</html>

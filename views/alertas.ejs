@@ -1,0 +1,293 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Salud - Alertas de Stock</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: #f1f5f9;
+            color: #1e293b;
+            padding: 30px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 30px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #475569;
+            font-size: 14px;
+            padding: 9px 12px;
+            border-radius: 6px;
+        }
+
+        .nav a:hover,
+        .nav a.activo {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        h2 {
+            font-size: 22px;
+            margin-bottom: 8px;
+            color: #1e293b;
+        }
+
+        .descripcion {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .alerta-info {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            color: #9a3412;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 22px;
+        }
+
+        h3 {
+            font-size: 16px;
+            color: #334155;
+            margin-bottom: 15px;
+        }
+
+        .tabla-contenedor {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            min-width: 550px;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+
+        th {
+            color: #64748b;
+            background: #f8fafc;
+            font-weight: 600;
+        }
+
+        td {
+            color: #334155;
+        }
+
+        .stock-bajo {
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #fee2e2;
+            color: #b91c1c;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .empty {
+            text-align: center;
+            color: #64748b;
+            padding: 25px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="nav">
+            <a href="/view-venta">Registrar Venta</a>
+            <a href="/view-productos">Inventario</a>
+            <a href="/view-alertas" class="activo">Alertas de Stock</a>
+        </div>
+
+        <h2>Alertas de reposición</h2>
+
+        <p class="descripcion">
+            Consulte los productos que han alcanzado o están por debajo de su stock mínimo.
+        </p>
+
+        <div class="alerta-info">
+            Los productos mostrados necesitan atención para evitar quedarse sin existencias.
+        </div>
+
+        <h3>Productos con stock bajo</h3>
+
+        <div class="tabla-contenedor">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Stock actual</th>
+                        <th>Stock mínimo</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+
+                <tbody id="tablaBody">
+                    <tr>
+                        <td colspan="4" class="empty">
+                            Cargando alertas...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- Cliente de Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        const token = localStorage.getItem('mi_token');
+
+        if (!token) {
+            window.location.href = '/view-login';
+        }
+
+        // Evitar mostrar texto recibido como HTML
+        function escaparHTML(texto) {
+            return String(texto ?? '').replace(/[&<>"']/g, caracter => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[caracter]);
+        }
+
+        // Cargar alertas de stock
+        function cargarAlertas() {
+            fetch('/productos/bajo-stock', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error('No se pudieron cargar las alertas');
+                }
+
+                return res.json();
+            })
+            .then(productos => {
+                const tbody = document.getElementById('tablaBody');
+                tbody.innerHTML = '';
+
+                if (!Array.isArray(productos)) {
+                    throw new Error('Respuesta inválida del servidor');
+                }
+
+                if (productos.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="empty">
+                                Todo el inventario está en niveles óptimos.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                productos.forEach(p => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${escaparHTML(p.nombre)}</td>
+
+                            <td class="stock-bajo">
+                                ${escaparHTML(p.stock)}
+                            </td>
+
+                            <td>
+                                ${escaparHTML(p.stockMinimo)}
+                            </td>
+
+                            <td>
+                                <span class="badge">
+                                    Reponer urgente
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(err => {
+                console.error(err);
+
+                document.getElementById('tablaBody').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="empty">
+                            Error al cargar las alertas. Intente nuevamente.
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Cargar alertas al iniciar
+        cargarAlertas();
+
+        // Conexión con Socket.IO
+        const socket = io();
+
+        socket.on('alerta-stock', (productos) => {
+            console.log('Actualización de stock recibida');
+            cargarAlertas();
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Error de conexión Socket.IO:', err);
+        });
+    </script>
+
+</body>
+</html>
